@@ -1,4 +1,5 @@
-const apiUrl = 'http://localhost:3000/expenses';
+const storageKey = 'splitbill-expenses-v1';
+const dataUrl = new URL('./db.json', document.baseURI);
 const views = document.querySelectorAll('.view');
 const navButtons = document.querySelectorAll('.nav-button');
 const expenseList = document.querySelector('#expense-list');
@@ -40,22 +41,28 @@ function share(expense) {
   return euro(Number(expense.amount) / Number(expense.participants));
 }
 
-// Kaikki palvelinpyynnöt tarkistetaan samalla tavalla.
-async function apiRequest(url, options) {
-  const response = await fetch(url, options);
-  if (!response.ok) throw new Error('Palvelin vastasi virheellä ' + response.status);
-  if (response.status === 204 || (options && options.method === 'DELETE')) return null;
-  return response.json();
+function saveExpenses() {
+  localStorage.setItem(storageKey, JSON.stringify(expenses));
 }
 
 async function loadExpenses() {
   try {
-    expenses = await apiRequest(apiUrl);
+    const savedExpenses = localStorage.getItem(storageKey);
+    if (savedExpenses !== null) {
+      expenses = JSON.parse(savedExpenses);
+      if (!Array.isArray(expenses)) throw new Error('Tallennetut tiedot eivät ole kelvollisia.');
+    } else {
+      const response = await fetch(dataUrl);
+      if (!response.ok) throw new Error('db.json-tiedostoa ei voitu ladata.');
+      const data = await response.json();
+      if (!data || !Array.isArray(data.expenses)) throw new Error('db.json-tiedostossa ei ole kululistaa.');
+      expenses = data.expenses;
+    }
     renderExpenses();
     renderSummary();
     return true;
   } catch (error) {
-    showMessage('Kuluja ei voitu hakea. Tarkista, että JSON Server on käynnissä (npm run server). ' + error.message, true);
+    showMessage('Kuluja ei voitu ladata. Tarkista, että sivu on avattu GitHub Pagesista tai paikalliselta verkkopalvelimelta. ' + error.message, true);
     return false;
   }
 }
@@ -163,38 +170,42 @@ navButtons.forEach(function (button) {
   button.addEventListener('click', function () { showView(button.dataset.view); });
 });
 
-addForm.addEventListener('submit', async function (event) {
+addForm.addEventListener('submit', function (event) {
   event.preventDefault();
   const button = addForm.querySelector('[type="submit"]');
   button.disabled = true;
   try {
-    await apiRequest(apiUrl, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formExpense(addForm))
-    });
+    expenses.push(Object.assign({
+      id: String(Date.now()) + '-' + Math.random().toString(16).slice(2)
+    }, formExpense(addForm)));
+    saveExpenses();
     addForm.reset();
-    if (await loadExpenses()) {
-      showView('expenses');
-      showMessage('Kulu lisättiin.');
-    }
+    renderExpenses();
+    renderSummary();
+    showView('expenses');
+    showMessage('Kulu lisättiin.');
   } catch (error) {
-    showMessage('Kulun lisääminen epäonnistui. ' + error.message, true);
+    showMessage('Kulun tallentaminen epäonnistui. ' + error.message, true);
   } finally {
     button.disabled = false;
   }
 });
 
-editForm.addEventListener('submit', async function (event) {
+editForm.addEventListener('submit', function (event) {
   event.preventDefault();
   const button = editForm.querySelector('[type="submit"]');
   button.disabled = true;
   try {
-    await apiRequest(apiUrl + '/' + selectedId, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formExpense(editForm))
+    const expenseIndex = expenses.findIndex(function (expense) {
+      return String(expense.id) === String(selectedId);
     });
+    if (expenseIndex === -1) throw new Error('Kulua ei enää löydy.');
+    expenses[expenseIndex] = Object.assign({}, expenses[expenseIndex], formExpense(editForm));
+    saveExpenses();
     editDialog.close();
-    if (await loadExpenses()) showMessage('Muutokset tallennettiin.');
+    renderExpenses();
+    renderSummary();
+    showMessage('Muutokset tallennettiin tähän selaimeen.');
   } catch (error) {
     showMessage('Muokkaaminen epäonnistui. ' + error.message, true);
   } finally {
@@ -204,13 +215,18 @@ editForm.addEventListener('submit', async function (event) {
 
 document.querySelector('#cancel-edit').addEventListener('click', function () { editDialog.close(); });
 document.querySelector('#cancel-delete').addEventListener('click', function () { deletePopover.hidePopover(); });
-document.querySelector('#confirm-delete').addEventListener('click', async function () {
+document.querySelector('#confirm-delete').addEventListener('click', function () {
   const button = this;
   button.disabled = true;
   try {
-    await apiRequest(apiUrl + '/' + selectedId, { method: 'DELETE' });
+    expenses = expenses.filter(function (expense) {
+      return String(expense.id) !== String(selectedId);
+    });
+    saveExpenses();
     deletePopover.hidePopover();
-    if (await loadExpenses()) showMessage('Kulu poistettiin.');
+    renderExpenses();
+    renderSummary();
+    showMessage('Kulu poistettiin tästä selaimesta.');
   } catch (error) {
     showMessage('Poistaminen epäonnistui. ' + error.message, true);
   } finally {
