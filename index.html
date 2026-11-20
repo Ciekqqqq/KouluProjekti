@@ -21,7 +21,10 @@
   </header>
 
   <main class="container">
-    <p id="message" class="message" role="status" aria-live="polite" hidden></p>
+    <div id="message" class="message" role="status" aria-live="polite" hidden>
+      <span id="message-text"></span>
+      <button type="button" id="retry-load" class="secondary-button" hidden>Yritä uudelleen</button>
+    </div>
 
     <section id="expenses-view" class="view" aria-labelledby="expenses-title">
       <div class="section-heading">

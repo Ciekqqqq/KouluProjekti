@@ -84,7 +84,13 @@ summary { cursor: pointer; font-weight: 650; }
 .summary-row { display: flex; justify-content: space-between; gap: 1rem; padding: .85rem 1rem; border-radius: .65rem; background: light-dark(#fff, #1c2e2b); }
 .summary-row span { overflow-wrap: anywhere; }
 .summary-row strong { white-space: nowrap; }
-.message { border-radius: .6rem; padding: .8rem 1rem; background: light-dark(#e0f4eb, #234839); }
+.message {
+  border-radius: .6rem; padding: .8rem 1rem;
+  display: flex; flex-wrap: wrap; align-items: center;
+  justify-content: space-between; gap: .75rem;
+  background: light-dark(#e0f4eb, #234839);
+}
+.message .secondary-button { padding: .45rem .75rem; }
 .message.error { background: light-dark(#fbe8e8, #5b292d); color: light-dark(#7b1d20, #ffe3e3); }
 dialog, [popover] {
   width: min(100% - 2rem, 530px); max-height: calc(100vh - 2rem); overflow: auto;

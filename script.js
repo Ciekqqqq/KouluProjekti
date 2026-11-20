@@ -1,5 +1,7 @@
 // JSON Server tarjoaa REST-rajapinnan. Käynnistys: npm run server (portti 3000).
-const API_URL = 'http://localhost:3000/expenses';
+// 127.0.0.1 eikä localhost: Windows voi resolvata localhostin IPv6-osoitteeseen.
+const API_HOST = 'http://127.0.0.1:3000';
+const API_URL = API_HOST + '/expenses';
 
 const views = document.querySelectorAll('.view');
 const navLinks = document.querySelectorAll('.nav-button');
@@ -13,6 +15,8 @@ const editForm = document.querySelector('#edit-form');
 const deletePopover = document.querySelector('#delete-popover');
 const deleteQuestion = document.querySelector('#delete-question');
 const sortSelect = document.querySelector('#sort-mode');
+const messageText = document.querySelector('#message-text');
+const retryButton = document.querySelector('#retry-load');
 
 const VIEW_NAMES = ['expenses', 'add', 'summary'];
 
@@ -30,7 +34,11 @@ async function apiRequest(path = '', options = {}) {
   try {
     response = await fetch(API_URL + path, config);
   } catch (error) {
-    throw new Error('Palvelimeen ei saada yhteyttä. Onko JSON Server käynnissä (npm run server)?');
+    throw new Error(
+      'Palvelimeen ei saada yhteyttä osoitteessa ' + API_URL +
+      '. Käynnistä JSON Server komennolla npm run server ja avaa sivu osoitteessa ' +
+      API_HOST + '.'
+    );
   }
 
   if (!response.ok) {
@@ -47,9 +55,10 @@ async function loadExpenses() {
     if (!Array.isArray(data)) throw new Error('Palvelin ei palauttanut kululistaa.');
     expenses = data;
     renderAll();
+    hideMessage();
     return true;
   } catch (error) {
-    showMessage('Kulujen lataaminen epäonnistui. ' + error.message, true);
+    showMessage('Kulujen lataaminen epäonnistui. ' + error.message, true, true);
     return false;
   }
 }
@@ -87,10 +96,16 @@ function goTo(viewName) {
   else location.hash = viewName;
 }
 
-function showMessage(text, isError = false) {
-  message.textContent = text;
+function showMessage(text, isError = false, allowRetry = false) {
+  messageText.textContent = text;
   message.classList.toggle('error', isError);
+  retryButton.hidden = !allowRetry;
   message.hidden = false;
+}
+
+function hideMessage() {
+  message.hidden = true;
+  retryButton.hidden = true;
 }
 
 /* ---------- Muotoilu ---------- */
@@ -320,6 +335,10 @@ document.querySelector('#cancel-delete').addEventListener('click', function () {
 sortSelect.addEventListener('change', function () {
   sortMode = sortSelect.value;
   renderExpenses();
+});
+
+retryButton.addEventListener('click', function () {
+  loadExpenses();
 });
 
 window.addEventListener('hashchange', function () {
