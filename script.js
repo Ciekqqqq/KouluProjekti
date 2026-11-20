@@ -1,28 +1,90 @@
-const storageKey = 'splitbill-expenses-v1';
-const dataUrl = new URL('./db.json', document.baseURI);
+// JSON Server tarjoaa REST-rajapinnan. Käynnistys: npm run server (portti 3000).
+const API_URL = 'http://localhost:3000/expenses';
+
 const views = document.querySelectorAll('.view');
-const navButtons = document.querySelectorAll('.nav-button');
+const navLinks = document.querySelectorAll('.nav-button');
 const expenseList = document.querySelector('#expense-list');
 const summaryList = document.querySelector('#summary-list');
+const emptyMessage = document.querySelector('#empty-message');
 const message = document.querySelector('#message');
 const addForm = document.querySelector('#add-form');
 const editDialog = document.querySelector('#edit-dialog');
 const editForm = document.querySelector('#edit-form');
 const deletePopover = document.querySelector('#delete-popover');
+const deleteQuestion = document.querySelector('#delete-question');
+const sortSelect = document.querySelector('#sort-mode');
+
+const VIEW_NAMES = ['expenses', 'add', 'summary'];
 
 let expenses = [];
 let selectedId = null;
+let sortMode = 'newest';
 
-function showView(viewName) {
+/* ---------- REST-avustajat ---------- */
+
+async function apiRequest(path = '', options = {}) {
+  const config = Object.assign({}, options);
+  if (config.body) config.headers = { 'Content-Type': 'application/json' };
+
+  let response;
+  try {
+    response = await fetch(API_URL + path, config);
+  } catch (error) {
+    throw new Error('Palvelimeen ei saada yhteyttä. Onko JSON Server käynnissä (npm run server)?');
+  }
+
+  if (!response.ok) {
+    throw new Error('Palvelin vastasi virheellä ' + response.status + ' ' + response.statusText + '.');
+  }
+
+  if (response.status === 204) return null;
+  return response.json();
+}
+
+async function loadExpenses() {
+  try {
+    const data = await apiRequest();
+    if (!Array.isArray(data)) throw new Error('Palvelin ei palauttanut kululistaa.');
+    expenses = data;
+    renderAll();
+    return true;
+  } catch (error) {
+    showMessage('Kulujen lataaminen epäonnistui. ' + error.message, true);
+    return false;
+  }
+}
+
+/* ---------- Näkymät ja viestit ---------- */
+
+function showView(viewName, moveFocus = false) {
   views.forEach(function (view) {
     view.hidden = view.id !== viewName + '-view';
   });
-  navButtons.forEach(function (button) {
-    const active = button.dataset.view === viewName;
-    button.classList.toggle('active', active);
-    if (active) button.setAttribute('aria-current', 'page');
-    else button.removeAttribute('aria-current');
+
+  navLinks.forEach(function (link) {
+    const active = link.dataset.view === viewName;
+    link.classList.toggle('active', active);
+    if (active) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
   });
+
+  if (moveFocus) {
+    const heading = document.querySelector('#' + viewName + '-view h2');
+    if (heading) {
+      heading.setAttribute('tabindex', '-1');
+      heading.focus({ preventScroll: true });
+    }
+  }
+}
+
+function currentView() {
+  const name = location.hash.replace('#', '');
+  return VIEW_NAMES.includes(name) ? name : 'expenses';
+}
+
+function goTo(viewName) {
+  if (location.hash === '#' + viewName) showView(viewName);
+  else location.hash = viewName;
 }
 
 function showMessage(text, isError = false) {
@@ -30,6 +92,8 @@ function showMessage(text, isError = false) {
   message.classList.toggle('error', isError);
   message.hidden = false;
 }
+
+/* ---------- Muotoilu ---------- */
 
 function euro(amount) {
   return Number(amount).toLocaleString('fi-FI', {
@@ -41,51 +105,46 @@ function share(expense) {
   return euro(Number(expense.amount) / Number(expense.participants));
 }
 
-function saveExpenses() {
-  localStorage.setItem(storageKey, JSON.stringify(expenses));
+function sortedExpenses() {
+  const copy = expenses.slice();
+
+  if (sortMode === 'amount') {
+    copy.sort(function (a, b) { return Number(b.amount) - Number(a.amount); });
+  } else if (sortMode === 'name') {
+    copy.sort(function (a, b) { return String(a.name).localeCompare(String(b.name), 'fi'); });
+  } else {
+    copy.reverse();
+  }
+
+  return copy;
 }
 
-async function loadExpenses() {
-  try {
-    const savedExpenses = localStorage.getItem(storageKey);
-    if (savedExpenses !== null) {
-      expenses = JSON.parse(savedExpenses);
-      if (!Array.isArray(expenses)) throw new Error('Tallennetut tiedot eivät ole kelvollisia.');
-    } else {
-      const response = await fetch(dataUrl);
-      if (!response.ok) throw new Error('db.json-tiedostoa ei voitu ladata.');
-      const data = await response.json();
-      if (!data || !Array.isArray(data.expenses)) throw new Error('db.json-tiedostossa ei ole kululistaa.');
-      expenses = data.expenses;
-    }
-    renderExpenses();
-    renderSummary();
-    return true;
-  } catch (error) {
-    showMessage('Kuluja ei voitu ladata. Tarkista, että sivu on avattu GitHub Pagesista tai paikalliselta verkkopalvelimelta. ' + error.message, true);
-    return false;
-  }
+/* ---------- Renderöinti ---------- */
+
+function renderAll() {
+  renderExpenses();
+  renderSummary();
 }
 
 function renderExpenses() {
   expenseList.replaceChildren();
-  document.querySelector('#empty-message').hidden = expenses.length !== 0;
+  emptyMessage.hidden = expenses.length !== 0;
 
-  expenses.forEach(function (expense) {
+  sortedExpenses().forEach(function (expense) {
     const card = document.createElement('article');
     card.className = 'expense-card';
+
     const title = document.createElement('h3');
     title.textContent = expense.name;
     card.append(title);
 
     const details = document.createElement('dl');
-    const rows = [
+    [
       ['Summa', euro(expense.amount)],
       ['Maksaja', expense.payer],
       ['Osallistujia', expense.participants],
       ['Kategoria', expense.category]
-    ];
-    rows.forEach(function (row) {
+    ].forEach(function (row) {
       const term = document.createElement('dt');
       const value = document.createElement('dd');
       term.textContent = row[0];
@@ -101,18 +160,21 @@ function renderExpenses() {
 
     const actions = document.createElement('div');
     actions.className = 'actions';
+
     const editButton = document.createElement('button');
     editButton.type = 'button';
     editButton.className = 'secondary-button';
     editButton.textContent = 'Muokkaa';
     editButton.setAttribute('aria-label', 'Muokkaa kulua ' + expense.name);
-    editButton.addEventListener('click', function () { openEdit(expense); });
+    editButton.addEventListener('click', function () { openEdit(expense.id); });
+
     const deleteButton = document.createElement('button');
     deleteButton.type = 'button';
     deleteButton.className = 'secondary-button';
     deleteButton.textContent = 'Poista…';
     deleteButton.setAttribute('aria-label', 'Poista kulu ' + expense.name);
-    deleteButton.addEventListener('click', function () { openDelete(expense); });
+    deleteButton.addEventListener('click', function () { openDelete(expense.id); });
+
     actions.append(editButton, deleteButton);
     card.append(actions);
     expenseList.append(card);
@@ -121,36 +183,52 @@ function renderExpenses() {
 
 function renderSummary() {
   document.querySelector('#expense-count').textContent = expenses.length;
+
   const total = expenses.reduce(function (sum, expense) {
     return sum + Number(expense.amount);
   }, 0);
   document.querySelector('#total-amount').textContent = euro(total);
+
   summaryList.replaceChildren();
-  expenses.forEach(function (expense) {
+
+  const rows = expenses.map(function (expense) {
     const row = document.createElement('article');
     row.className = 'summary-row';
+
     const name = document.createElement('span');
     name.textContent = expense.name;
+
     const value = document.createElement('strong');
     value.textContent = share(expense) + ' / hlö';
+
     row.append(name, value);
-    summaryList.append(row);
+    return row;
   });
+
+  summaryList.append(...rows);
   if (expenses.length === 0) summaryList.textContent = 'Ei vielä kuluja.';
 }
+
+/* ---------- Lomakedata ---------- */
 
 function formExpense(form) {
   const data = new FormData(form);
   return {
-    name: data.get('name').trim(),
+    name: String(data.get('name')).trim(),
     amount: Number(data.get('amount')),
-    payer: data.get('payer').trim(),
+    payer: String(data.get('payer')).trim(),
     participants: Number(data.get('participants')),
-    category: data.get('category').trim()
+    category: String(data.get('category')).trim()
   };
 }
 
-function openEdit(expense) {
+function openEdit(id) {
+  const expense = expenses.find(function (item) { return String(item.id) === String(id); });
+  if (!expense) {
+    showMessage('Kulua ei enää löydy. Päivitä lista.', true);
+    return;
+  }
+
   selectedId = expense.id;
   editForm.elements.namedItem('name').value = expense.name;
   editForm.elements.namedItem('amount').value = expense.amount;
@@ -160,30 +238,34 @@ function openEdit(expense) {
   editDialog.showModal();
 }
 
-function openDelete(expense) {
+function openDelete(id) {
+  const expense = expenses.find(function (item) { return String(item.id) === String(id); });
+  if (!expense) {
+    showMessage('Kulua ei enää löydy. Päivitä lista.', true);
+    return;
+  }
+
   selectedId = expense.id;
-  document.querySelector('#delete-question').textContent = 'Poistetaanko kulu ”' + expense.name + '”?';
+  deleteQuestion.textContent = 'Poistetaanko kulu ”' + expense.name + '”?';
   deletePopover.showPopover();
 }
 
-navButtons.forEach(function (button) {
-  button.addEventListener('click', function () { showView(button.dataset.view); });
-});
+/* ---------- CRUD ---------- */
 
-addForm.addEventListener('submit', function (event) {
+addForm.addEventListener('submit', async function (event) {
   event.preventDefault();
   const button = addForm.querySelector('[type="submit"]');
   button.disabled = true;
+
   try {
-    expenses.push(Object.assign({
-      id: String(Date.now()) + '-' + Math.random().toString(16).slice(2)
-    }, formExpense(addForm)));
-    saveExpenses();
+    await apiRequest('', {
+      method: 'POST',
+      body: JSON.stringify(formExpense(addForm))
+    });
     addForm.reset();
-    renderExpenses();
-    renderSummary();
-    showView('expenses');
-    showMessage('Kulu lisättiin.');
+    await loadExpenses();
+    goTo('expenses');
+    showMessage('Kulu lisättiin palvelimelle.');
   } catch (error) {
     showMessage('Kulun tallentaminen epäonnistui. ' + error.message, true);
   } finally {
@@ -191,21 +273,19 @@ addForm.addEventListener('submit', function (event) {
   }
 });
 
-editForm.addEventListener('submit', function (event) {
+editForm.addEventListener('submit', async function (event) {
   event.preventDefault();
   const button = editForm.querySelector('[type="submit"]');
   button.disabled = true;
+
   try {
-    const expenseIndex = expenses.findIndex(function (expense) {
-      return String(expense.id) === String(selectedId);
+    await apiRequest('/' + encodeURIComponent(selectedId), {
+      method: 'PATCH',
+      body: JSON.stringify(formExpense(editForm))
     });
-    if (expenseIndex === -1) throw new Error('Kulua ei enää löydy.');
-    expenses[expenseIndex] = Object.assign({}, expenses[expenseIndex], formExpense(editForm));
-    saveExpenses();
     editDialog.close();
-    renderExpenses();
-    renderSummary();
-    showMessage('Muutokset tallennettiin tähän selaimeen.');
+    await loadExpenses();
+    showMessage('Muutokset tallennettiin palvelimelle.');
   } catch (error) {
     showMessage('Muokkaaminen epäonnistui. ' + error.message, true);
   } finally {
@@ -213,20 +293,15 @@ editForm.addEventListener('submit', function (event) {
   }
 });
 
-document.querySelector('#cancel-edit').addEventListener('click', function () { editDialog.close(); });
-document.querySelector('#cancel-delete').addEventListener('click', function () { deletePopover.hidePopover(); });
-document.querySelector('#confirm-delete').addEventListener('click', function () {
+document.querySelector('#confirm-delete').addEventListener('click', async function () {
   const button = this;
   button.disabled = true;
+
   try {
-    expenses = expenses.filter(function (expense) {
-      return String(expense.id) !== String(selectedId);
-    });
-    saveExpenses();
+    await apiRequest('/' + encodeURIComponent(selectedId), { method: 'DELETE' });
     deletePopover.hidePopover();
-    renderExpenses();
-    renderSummary();
-    showMessage('Kulu poistettiin tästä selaimesta.');
+    await loadExpenses();
+    showMessage('Kulu poistettiin palvelimelta.');
   } catch (error) {
     showMessage('Poistaminen epäonnistui. ' + error.message, true);
   } finally {
@@ -234,4 +309,25 @@ document.querySelector('#confirm-delete').addEventListener('click', function () 
   }
 });
 
+document.querySelector('#cancel-edit').addEventListener('click', function () {
+  editDialog.close();
+});
+
+document.querySelector('#cancel-delete').addEventListener('click', function () {
+  deletePopover.hidePopover();
+});
+
+sortSelect.addEventListener('change', function () {
+  sortMode = sortSelect.value;
+  renderExpenses();
+});
+
+window.addEventListener('hashchange', function () {
+  showView(currentView(), true);
+});
+
+/* ---------- Käynnistys ---------- */
+
+sortMode = sortSelect.value;
+showView(currentView());
 loadExpenses();
