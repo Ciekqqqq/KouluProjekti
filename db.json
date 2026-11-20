@@ -1,7 +1,29 @@
 {
   "expenses": [
-    { "id": "1", "name": "Päivällinen", "amount": 30, "payer": "Aino", "participants": 3, "category": "Ruoka" },
-    { "id": "2", "name": "Junamatka", "amount": 24, "payer": "Eeli", "participants": 2, "category": "Matkustus" },
-    { "id": "3", "name": "Yhteiset ostokset", "amount": 15.6, "payer": "Noora", "participants": 4, "category": "Ostokset" }
-  ]
+    {
+      "id": "1",
+      "name": "Päivällinen",
+      "amount": 30,
+      "payer": "Aino",
+      "participants": 3,
+      "category": "Ruoka"
+    },
+    {
+      "id": "2",
+      "name": "Junamatka",
+      "amount": 24,
+      "payer": "Eeli",
+      "participants": 2,
+      "category": "Matkustus"
+    },
+    {
+      "id": "3",
+      "name": "Yhteiset ostokset",
+      "amount": 15.6,
+      "payer": "Noora",
+      "participants": 4,
+      "category": "Ostokset"
+    }
+  ],
+  "$schema": "./node_modules/json-server/schema.json"
 }
