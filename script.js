@@ -22,18 +22,17 @@ const VIEW_NAMES = ['expenses', 'add', 'summary'];
 
 let expenses = [];
 let selectedId = null;
-let sortMode = 'newest';
 
 /* ---------- REST-avustajat ---------- */
 
 async function apiRequest(path = '', options = {}) {
-  const config = Object.assign({}, options);
+  const config = { ...options };
   if (config.body) config.headers = { 'Content-Type': 'application/json' };
 
   let response;
   try {
     response = await fetch(API_URL + path, config);
-  } catch (error) {
+  } catch {
     throw new Error(
       'Palvelimeen ei saada yhteyttä osoitteessa ' + API_URL +
       '. Käynnistä JSON Server komennolla npm run server ja avaa sivu osoitteessa ' +
@@ -123,9 +122,9 @@ function share(expense) {
 function sortedExpenses() {
   const copy = expenses.slice();
 
-  if (sortMode === 'amount') {
+  if (sortSelect.value === 'amount') {
     copy.sort(function (a, b) { return Number(b.amount) - Number(a.amount); });
-  } else if (sortMode === 'name') {
+  } else if (sortSelect.value === 'name') {
     copy.sort(function (a, b) { return String(a.name).localeCompare(String(b.name), 'fi'); });
   } else {
     copy.reverse();
@@ -237,30 +236,27 @@ function formExpense(form) {
   };
 }
 
-function openEdit(id) {
-  const expense = expenses.find(function (item) { return String(item.id) === String(id); });
-  if (!expense) {
-    showMessage('Kulua ei enää löydy. Päivitä lista.', true);
-    return;
-  }
+function selectExpense(id) {
+  const expense = expenses.find(item => String(item.id) === String(id));
+  if (!expense) showMessage('Kulua ei enää löydy. Päivitä lista.', true);
+  else selectedId = expense.id;
+  return expense;
+}
 
-  selectedId = expense.id;
-  editForm.elements.namedItem('name').value = expense.name;
-  editForm.elements.namedItem('amount').value = expense.amount;
-  editForm.elements.namedItem('payer').value = expense.payer;
-  editForm.elements.namedItem('participants').value = expense.participants;
-  editForm.elements.namedItem('category').value = expense.category;
+function openEdit(id) {
+  const expense = selectExpense(id);
+  if (!expense) return;
+
+  for (const field of ['name', 'amount', 'payer', 'participants', 'category']) {
+    editForm.elements.namedItem(field).value = expense[field];
+  }
   editDialog.showModal();
 }
 
 function openDelete(id) {
-  const expense = expenses.find(function (item) { return String(item.id) === String(id); });
-  if (!expense) {
-    showMessage('Kulua ei enää löydy. Päivitä lista.', true);
-    return;
-  }
+  const expense = selectExpense(id);
+  if (!expense) return;
 
-  selectedId = expense.id;
   deleteQuestion.textContent = 'Poistetaanko kulu ”' + expense.name + '”?';
   deletePopover.showPopover();
 }
@@ -278,7 +274,7 @@ addForm.addEventListener('submit', async function (event) {
       body: JSON.stringify(formExpense(addForm))
     });
     addForm.reset();
-    await loadExpenses();
+    if (!(await loadExpenses())) return;
     goTo('expenses');
     showMessage('Kulu lisättiin palvelimelle.');
   } catch (error) {
@@ -299,7 +295,7 @@ editForm.addEventListener('submit', async function (event) {
       body: JSON.stringify(formExpense(editForm))
     });
     editDialog.close();
-    await loadExpenses();
+    if (!(await loadExpenses())) return;
     showMessage('Muutokset tallennettiin palvelimelle.');
   } catch (error) {
     showMessage('Muokkaaminen epäonnistui. ' + error.message, true);
@@ -315,7 +311,7 @@ document.querySelector('#confirm-delete').addEventListener('click', async functi
   try {
     await apiRequest('/' + encodeURIComponent(selectedId), { method: 'DELETE' });
     deletePopover.hidePopover();
-    await loadExpenses();
+    if (!(await loadExpenses())) return;
     showMessage('Kulu poistettiin palvelimelta.');
   } catch (error) {
     showMessage('Poistaminen epäonnistui. ' + error.message, true);
@@ -332,10 +328,7 @@ document.querySelector('#cancel-delete').addEventListener('click', function () {
   deletePopover.hidePopover();
 });
 
-sortSelect.addEventListener('change', function () {
-  sortMode = sortSelect.value;
-  renderExpenses();
-});
+sortSelect.addEventListener('change', renderExpenses);
 
 retryButton.addEventListener('click', function () {
   loadExpenses();
@@ -347,6 +340,5 @@ window.addEventListener('hashchange', function () {
 
 /* ---------- Käynnistys ---------- */
 
-sortMode = sortSelect.value;
 showView(currentView());
 loadExpenses();
