@@ -11,11 +11,10 @@
   <header class="site-header">
     <div class="container">
       <h1>SplitBill</h1>
-      <p>Jaa yhteiset kulut helposti.</p>
       <nav aria-label="Päänavigaatio">
-        <a class="nav-button" href="#expenses" data-view="expenses">Kulut</a>
-        <a class="nav-button" href="#add" data-view="add">Lisää kulu</a>
-        <a class="nav-button" href="#summary" data-view="summary">Yhteenveto</a>
+        <a class="nav-button" href="#expenses">Kulut</a>
+        <a class="nav-button" href="#add">Lisää kulu</a>
+        <a class="nav-button" href="#summary">Yhteenveto</a>
       </nav>
     </div>
   </header>
@@ -28,9 +27,7 @@
 
     <section id="expenses-view" class="view" aria-labelledby="expenses-title">
       <div class="section-heading">
-        <div>
-          <h2 id="expenses-title">Kulut</h2>
-        </div>
+        <h2 id="expenses-title" tabindex="-1">Kulut</h2>
         <div class="field sort-control">
           <label for="sort-mode">Järjestys</label>
           <select id="sort-mode">
@@ -41,44 +38,23 @@
         </div>
       </div>
       <div id="expense-list" class="card-grid"></div>
-      <p id="empty-message" hidden>Ei vielä kuluja. Lisää ensimmäinen kulu Lisää kulu -näkymässä.</p>
+      <p id="empty-message" hidden>Ei vielä kuluja.</p>
     </section>
 
     <section id="add-view" class="view" aria-labelledby="add-title" hidden>
-      <h2 id="add-title">Lisää kulu</h2>
+      <h2 id="add-title" tabindex="-1">Lisää kulu</h2>
       <form id="add-form" class="panel">
-        <div class="fields">
-          <div class="field">
-            <label for="add-name">Kulun nimi</label>
-            <input id="add-name" name="name" required maxlength="80" autocomplete="off">
-          </div>
-          <div class="field">
-            <label for="add-amount">Summa (€)</label>
-            <input id="add-amount" name="amount" type="number" required min="0.01" step="0.01" inputmode="decimal">
-          </div>
-          <div class="field">
-            <label for="add-payer">Maksajan nimi</label>
-            <input id="add-payer" name="payer" required maxlength="60" autocomplete="name">
-          </div>
-          <div class="field">
-            <label for="add-participants">Osallistujien määrä</label>
-            <input id="add-participants" name="participants" type="number" required min="1" max="50" step="1" inputmode="numeric">
-          </div>
-          <div class="field">
-            <label for="add-category">Kategoria</label>
-            <input id="add-category" name="category" list="categories" required maxlength="40" autocomplete="off">
-          </div>
-        </div>
+        <div class="fields"></div>
         <button type="submit" class="primary-button">Tallenna kulu</button>
       </form>
       <details class="help panel">
         <summary>Kuinka jako lasketaan?</summary>
-        <p>Jokaisen osuus saadaan jakamalla kulun summa osallistujien määrällä. Esimerkiksi 30 € jaettuna kolmelle on 10 € henkilöä kohden.</p>
+        <p>Summa jaetaan osallistujien määrällä.</p>
       </details>
     </section>
 
     <section id="summary-view" class="view" aria-labelledby="summary-title" hidden>
-      <h2 id="summary-title">Yhteenveto</h2>
+      <h2 id="summary-title" tabindex="-1">Yhteenveto</h2>
       <div class="totals">
         <article class="panel"><h3>Kuluja yhteensä</h3><p id="expense-count" class="large-number">0</p></article>
         <article class="panel"><h3>Yhteissumma</h3><p id="total-amount" class="large-number">0,00 €</p></article>
@@ -87,6 +63,41 @@
       <div id="summary-list" class="summary-list"></div>
     </section>
   </main>
+
+  <template id="expense-fields">
+    <label class="field">Kulun nimi
+      <input name="name" required minlength="1" maxlength="80" autocomplete="off">
+    </label>
+    <label class="field">Summa (€)
+      <input name="amount" type="number" required min="0.01" step="0.01" inputmode="decimal">
+    </label>
+    <label class="field">Maksajan nimi
+      <input name="payer" required maxlength="60" autocomplete="name">
+    </label>
+    <label class="field">Osallistujien määrä
+      <input name="participants" type="number" required min="1" max="50" step="1" inputmode="numeric">
+    </label>
+    <label class="field">Kategoria
+      <input name="category" list="categories" required maxlength="40" autocomplete="off">
+    </label>
+  </template>
+
+  <template id="expense-card">
+    <article class="expense-card">
+      <h3></h3>
+      <dl>
+        <dt>Summa</dt><dd></dd>
+        <dt>Maksaja</dt><dd></dd>
+        <dt>Osallistujia</dt><dd></dd>
+        <dt>Kategoria</dt><dd></dd>
+      </dl>
+      <p class="per-person"></p>
+      <div class="actions">
+        <button type="button" class="secondary-button edit-button">Muokkaa</button>
+        <button type="button" class="secondary-button delete-button">Poista…</button>
+      </div>
+    </article>
+  </template>
 
   <datalist id="categories">
     <option value="Ruoka"></option>
@@ -98,28 +109,8 @@
   <dialog id="edit-dialog" aria-labelledby="edit-title">
     <form id="edit-form">
       <h2 id="edit-title">Muokkaa kulua</h2>
-      <div class="fields">
-        <div class="field">
-          <label for="edit-name">Kulun nimi</label>
-          <input id="edit-name" name="name" required maxlength="80" autocomplete="off">
-        </div>
-        <div class="field">
-          <label for="edit-amount">Summa (€)</label>
-          <input id="edit-amount" name="amount" type="number" required min="0.01" step="0.01" inputmode="decimal">
-        </div>
-        <div class="field">
-          <label for="edit-payer">Maksajan nimi</label>
-          <input id="edit-payer" name="payer" required maxlength="60" autocomplete="off">
-        </div>
-        <div class="field">
-          <label for="edit-participants">Osallistujien määrä</label>
-          <input id="edit-participants" name="participants" type="number" required min="1" max="50" step="1" inputmode="numeric">
-        </div>
-        <div class="field">
-          <label for="edit-category">Kategoria</label>
-          <input id="edit-category" name="category" list="categories" required maxlength="40" autocomplete="off">
-        </div>
-      </div>
+      <div class="fields"></div>
+      <p id="edit-error" class="inline-error" role="alert"></p>
       <div class="actions">
         <button type="button" id="cancel-edit" class="secondary-button">Peruuta</button>
         <button type="submit" class="primary-button">Tallenna muutokset</button>
@@ -129,8 +120,9 @@
 
   <div id="delete-popover" popover aria-label="Kulun poistaminen">
     <p id="delete-question"></p>
+    <p id="delete-error" class="inline-error" role="alert"></p>
     <div class="actions">
-      <button type="button" id="cancel-delete" class="secondary-button">Peruuta</button>
+      <button type="button" popovertarget="delete-popover" popovertargetaction="hide" class="secondary-button">Peruuta</button>
       <button type="button" id="confirm-delete" class="danger-button">Poista kulu</button>
     </div>
   </div>
