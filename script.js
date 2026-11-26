@@ -19,12 +19,11 @@ let expenses = [];
 let selectedId = null;
 
 async function apiRequest(path = '', options = {}) {
+  if (options.body) options.headers = { 'Content-Type': 'application/json' };
+
   let response;
   try {
-    response = await fetch(API_URL + path, {
-      ...options,
-      headers: options.body ? { 'Content-Type': 'application/json' } : {}
-    });
+    response = await fetch(API_URL + path, options);
   } catch {
     throw new Error('Palvelimeen ei saada yhteyttä. Käynnistä se komennolla npm run server.');
   }
