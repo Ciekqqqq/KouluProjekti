@@ -109,3 +109,7 @@ footer { padding-bottom: 1rem; color: light-dark(#4c665e, #bed3c8); }
   .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .totals { grid-template-columns: repeat(2, 1fr); }
 }
+
+:root:has(#light-mode:checked) { color-scheme: light; }
+.theme-choice { display: inline-flex; align-items: center; gap: .4rem; margin-bottom: .75rem; }
+.theme-choice input { width: auto; }
