@@ -1,319 +1,205 @@
 const API_URL = 'http://127.0.0.1:3000/expenses';
-
-const views = document.querySelectorAll('.view');
-const navLinks = document.querySelectorAll('.nav-button');
 const expenseList = document.querySelector('#expense-list');
-const summaryList = document.querySelector('#summary-list');
-const emptyMessage = document.querySelector('#empty-message');
-const message = document.querySelector('#message');
-const addForm = document.querySelector('#add-form');
-const editDialog = document.querySelector('#edit-dialog');
-const editForm = document.querySelector('#edit-form');
-const deletePopover = document.querySelector('#delete-popover');
-const deleteQuestion = document.querySelector('#delete-question');
 const sortSelect = document.querySelector('#sort-mode');
-const messageText = document.querySelector('#message-text');
+const addForm = document.querySelector('#add-form');
+const editForm = document.querySelector('#edit-form');
+const editDialog = document.querySelector('#edit-dialog');
+const editError = document.querySelector('#edit-error');
+const deletePopover = document.querySelector('#delete-popover');
+const deleteError = document.querySelector('#delete-error');
+const confirmDelete = document.querySelector('#confirm-delete');
+const message = document.querySelector('#message');
 const retryButton = document.querySelector('#retry-load');
+const fields = document.querySelector('#expense-fields');
+const cardTemplate = document.querySelector('#expense-card');
+const money = new Intl.NumberFormat('fi-FI', { style: 'currency', currency: 'EUR' });
 
 let expenses = [];
-let selectedId = null;
 
-async function apiRequest(path = '', options = {}) {
-  if (options.body) options.headers = { 'Content-Type': 'application/json' };
+for (const form of [addForm, editForm]) {
+  form.querySelector('.fields').append(fields.content.cloneNode(true));
+  form.addEventListener('submit', saveExpense);
+}
 
-  let response;
-  try {
-    response = await fetch(API_URL + path, options);
-  } catch {
-    throw new Error('Palvelimeen ei saada yhteyttä. Käynnistä se komennolla npm run server.');
+function showView(moveFocus = false) {
+  let view = location.hash.slice(1);
+  if (!['expenses', 'add', 'summary'].includes(view)) view = 'expenses';
+
+  for (const section of document.querySelectorAll('.view')) {
+    section.hidden = section.id !== view + '-view';
+    if (moveFocus && !section.hidden) section.querySelector('h2').focus();
+  }
+  for (const link of document.querySelectorAll('nav a')) {
+    if (link.hash === '#' + view) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
+  }
+}
+
+function showMessage(text, isError = false, retry = false) {
+  document.querySelector('#message-text').textContent = text;
+  message.hidden = !text;
+  message.classList.toggle('error', isError);
+  retryButton.hidden = !retry;
+}
+
+async function apiRequest(method = 'GET', id, expense) {
+  const path = id === undefined ? '' : '/' + encodeURIComponent(id);
+  const options = { method };
+  if (expense) {
+    options.headers = { 'Content-Type': 'application/json' };
+    options.body = JSON.stringify(expense);
   }
 
-  if (!response.ok) {
-    throw new Error('Palvelimen virhe: ' + response.status);
-  }
-
-  return response.status === 204 ? null : response.json();
+  const response = await fetch(API_URL + path, options);
+  if (!response.ok) throw new Error('Palvelimen virhe: ' + response.status);
+  if (method === 'GET') return response.json();
 }
 
 async function loadExpenses() {
   try {
     const data = await apiRequest();
-    if (!Array.isArray(data)) throw new Error('Palvelin ei palauttanut kululistaa.');
+    if (!Array.isArray(data)) throw new Error('Kululista puuttuu.');
     expenses = data;
-    renderAll();
-    hideMessage();
+    renderExpenses();
+    renderSummary();
+    showMessage('');
     return true;
-  } catch (error) {
-    showMessage('Kulujen lataaminen epäonnistui. ' + error.message, true, true);
+  } catch {
+    showMessage('Kuluja ei voitu ladata. Tarkista, että JSON Server on käynnissä.', true, true);
     return false;
   }
 }
 
-function showView(viewName, moveFocus = false) {
-  views.forEach(function (view) {
-    view.hidden = view.id !== viewName + '-view';
-  });
+function renderExpenses() {
+  const sorted = expenses.slice();
+  if (sortSelect.value === 'amount') sorted.sort((a, b) => b.amount - a.amount);
+  else if (sortSelect.value === 'name') sorted.sort((a, b) => String(a.name).localeCompare(String(b.name), 'fi'));
+  else sorted.reverse();
 
-  navLinks.forEach(function (link) {
-    const active = link.dataset.view === viewName;
-    link.classList.toggle('active', active);
-    if (active) link.setAttribute('aria-current', 'page');
-    else link.removeAttribute('aria-current');
-  });
-
-  if (moveFocus) {
-    const heading = document.querySelector('#' + viewName + '-view h2');
-    if (heading) {
-      heading.setAttribute('tabindex', '-1');
-      heading.focus({ preventScroll: true });
-    }
-  }
-}
-
-function currentView() {
-  const name = location.hash.replace('#', '');
-  return ['expenses', 'add', 'summary'].includes(name) ? name : 'expenses';
-}
-
-function goTo(viewName) {
-  if (location.hash === '#' + viewName) showView(viewName);
-  else location.hash = viewName;
-}
-
-function showMessage(text, isError = false, allowRetry = false) {
-  messageText.textContent = text;
-  message.classList.toggle('error', isError);
-  retryButton.hidden = !allowRetry;
-  message.hidden = false;
-}
-
-function hideMessage() {
-  message.hidden = true;
-  retryButton.hidden = true;
-}
-
-function euro(amount) {
-  return Number(amount).toLocaleString('fi-FI', {
-    style: 'currency', currency: 'EUR'
-  });
+  expenseList.replaceChildren(...sorted.map(makeCard));
+  document.querySelector('#empty-message').hidden = sorted.length > 0;
 }
 
 function share(expense) {
-  return euro(Number(expense.amount) / Number(expense.participants));
+  return money.format(expense.amount / expense.participants);
 }
 
-function sortedExpenses() {
-  const copy = expenses.slice();
+function makeCard(expense) {
+  const card = cardTemplate.content.firstElementChild.cloneNode(true);
+  card.querySelector('h3').textContent = expense.name;
+  const [amount, payer, participants, category] = card.querySelectorAll('dd');
+  amount.textContent = money.format(expense.amount);
+  payer.textContent = expense.payer;
+  participants.textContent = expense.participants;
+  category.textContent = expense.category;
+  card.querySelector('.per-person').textContent = 'Henkilöä kohden: ' + share(expense);
 
-  if (sortSelect.value === 'amount') {
-    copy.sort(function (a, b) { return Number(b.amount) - Number(a.amount); });
-  } else if (sortSelect.value === 'name') {
-    copy.sort(function (a, b) { return String(a.name).localeCompare(String(b.name), 'fi'); });
-  } else {
-    copy.reverse();
-  }
-
-  return copy;
-}
-
-function renderAll() {
-  renderExpenses();
-  renderSummary();
-}
-
-function renderExpenses() {
-  expenseList.replaceChildren();
-  emptyMessage.hidden = expenses.length !== 0;
-
-  sortedExpenses().forEach(function (expense) {
-    const card = document.createElement('article');
-    card.className = 'expense-card';
-
-    const title = document.createElement('h3');
-    title.textContent = expense.name;
-    card.append(title);
-
-    const details = document.createElement('dl');
-    [
-      ['Summa', euro(expense.amount)],
-      ['Maksaja', expense.payer],
-      ['Osallistujia', expense.participants],
-      ['Kategoria', expense.category]
-    ].forEach(function (row) {
-      const term = document.createElement('dt');
-      const value = document.createElement('dd');
-      term.textContent = row[0];
-      value.textContent = row[1];
-      details.append(term, value);
-    });
-    card.append(details);
-
-    const perPerson = document.createElement('p');
-    perPerson.className = 'per-person';
-    perPerson.textContent = 'Henkilöä kohden: ' + share(expense);
-    card.append(perPerson);
-
-    const actions = document.createElement('div');
-    actions.className = 'actions';
-
-    const editButton = document.createElement('button');
-    editButton.type = 'button';
-    editButton.className = 'secondary-button';
-    editButton.textContent = 'Muokkaa';
-    editButton.setAttribute('aria-label', 'Muokkaa kulua ' + expense.name);
-    editButton.addEventListener('click', function () { openEdit(expense.id); });
-
-    const deleteButton = document.createElement('button');
-    deleteButton.type = 'button';
-    deleteButton.className = 'secondary-button';
-    deleteButton.textContent = 'Poista…';
-    deleteButton.setAttribute('aria-label', 'Poista kulu ' + expense.name);
-    deleteButton.addEventListener('click', function () { openDelete(expense.id); });
-
-    actions.append(editButton, deleteButton);
-    card.append(actions);
-    expenseList.append(card);
-  });
+  const edit = card.querySelector('.edit-button');
+  const remove = card.querySelector('.delete-button');
+  edit.setAttribute('aria-label', 'Muokkaa kulua ' + expense.name);
+  remove.setAttribute('aria-label', 'Poista kulu ' + expense.name);
+  edit.addEventListener('click', () => openEdit(expense));
+  remove.addEventListener('click', () => openDelete(expense));
+  return card;
 }
 
 function renderSummary() {
   document.querySelector('#expense-count').textContent = expenses.length;
+  const total = expenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
+  document.querySelector('#total-amount').textContent = money.format(total);
 
-  const total = expenses.reduce(function (sum, expense) {
-    return sum + Number(expense.amount);
-  }, 0);
-  document.querySelector('#total-amount').textContent = euro(total);
-
-  summaryList.replaceChildren();
-
-  const rows = expenses.map(function (expense) {
+  const list = document.querySelector('#summary-list');
+  list.replaceChildren();
+  if (!expenses.length) list.textContent = 'Ei vielä kuluja.';
+  for (const expense of expenses) {
     const row = document.createElement('article');
-    row.className = 'summary-row';
-
     const name = document.createElement('span');
+    const amount = document.createElement('strong');
+    row.className = 'summary-row';
     name.textContent = expense.name;
-
-    const value = document.createElement('strong');
-    value.textContent = share(expense) + ' / hlö';
-
-    row.append(name, value);
-    return row;
-  });
-
-  summaryList.append(...rows);
-  if (expenses.length === 0) summaryList.textContent = 'Ei vielä kuluja.';
-}
-
-function formExpense(form) {
-  const data = new FormData(form);
-  return {
-    name: String(data.get('name')).trim(),
-    amount: Number(data.get('amount')),
-    payer: String(data.get('payer')).trim(),
-    participants: Number(data.get('participants')),
-    category: String(data.get('category')).trim()
-  };
-}
-
-function selectExpense(id) {
-  const expense = expenses.find(item => String(item.id) === String(id));
-  if (!expense) showMessage('Kulua ei enää löydy. Päivitä lista.', true);
-  else selectedId = expense.id;
-  return expense;
-}
-
-function openEdit(id) {
-  const expense = selectExpense(id);
-  if (!expense) return;
-
-  for (const field of ['name', 'amount', 'payer', 'participants', 'category']) {
-    editForm.elements.namedItem(field).value = expense[field];
+    amount.textContent = share(expense) + ' / hlö';
+    row.append(name, amount);
+    list.append(row);
   }
+}
+
+function openEdit(expense) {
+  if (editForm.querySelector('[type="submit"]').disabled) return;
+  editForm.dataset.id = expense.id;
+  for (const input of editForm.querySelectorAll('input')) {
+    input.value = expense[input.name];
+  }
+  editError.textContent = '';
   editDialog.showModal();
 }
 
-function openDelete(id) {
-  const expense = selectExpense(id);
-  if (!expense) return;
-
-  deleteQuestion.textContent = 'Poistetaanko kulu ”' + expense.name + '”?';
+function openDelete(expense) {
+  if (confirmDelete.disabled) return;
+  confirmDelete.dataset.id = expense.id;
+  document.querySelector('#delete-question').textContent = 'Poistetaanko ' + expense.name + '?';
+  deleteError.textContent = '';
   deletePopover.showPopover();
+  deletePopover.querySelector('button').focus();
 }
 
-addForm.addEventListener('submit', async function (event) {
-  event.preventDefault();
-  const button = addForm.querySelector('[type="submit"]');
-  button.disabled = true;
+function readForm(form) {
+  const data = new FormData(form);
+  return {
+    name: data.get('name').trim(),
+    amount: Number(data.get('amount')),
+    payer: data.get('payer').trim(),
+    participants: Number(data.get('participants')),
+    category: data.get('category').trim()
+  };
+}
 
+async function saveExpense(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector('[type="submit"]');
+  if (button.disabled) return;
+
+  const editing = form === editForm;
+  button.disabled = true;
+  editError.textContent = '';
   try {
-    await apiRequest('', {
-      method: 'POST',
-      body: JSON.stringify(formExpense(addForm))
-    });
-    addForm.reset();
-    if (!(await loadExpenses())) return;
-    goTo('expenses');
-    showMessage('Kulu lisättiin.');
-  } catch (error) {
-    showMessage('Kulun tallentaminen epäonnistui. ' + error.message, true);
+    await apiRequest(editing ? 'PATCH' : 'POST', form.dataset.id, readForm(form));
+    if (editing) editDialog.close();
+    else {
+      form.reset();
+      location.hash = 'expenses';
+    }
+    if (await loadExpenses()) showMessage(editing ? 'Muutokset tallennettiin.' : 'Kulu lisättiin.');
+  } catch {
+    const text = 'Kulua ei voitu tallentaa. Tarkista palvelin ja yritä uudelleen.';
+    if (editing && editDialog.open) editError.textContent = text;
+    else showMessage(text, true);
   } finally {
     button.disabled = false;
   }
-});
+}
 
-editForm.addEventListener('submit', async function (event) {
-  event.preventDefault();
-  const button = editForm.querySelector('[type="submit"]');
-  button.disabled = true;
-
+async function deleteExpense() {
+  confirmDelete.disabled = true;
+  deleteError.textContent = '';
   try {
-    await apiRequest('/' + encodeURIComponent(selectedId), {
-      method: 'PATCH',
-      body: JSON.stringify(formExpense(editForm))
-    });
-    editDialog.close();
-    if (!(await loadExpenses())) return;
-    showMessage('Muutokset tallennettiin.');
-  } catch (error) {
-    showMessage('Muokkaaminen epäonnistui. ' + error.message, true);
-  } finally {
-    button.disabled = false;
-  }
-});
-
-document.querySelector('#confirm-delete').addEventListener('click', async function () {
-  const button = this;
-  button.disabled = true;
-
-  try {
-    await apiRequest('/' + encodeURIComponent(selectedId), { method: 'DELETE' });
+    await apiRequest('DELETE', confirmDelete.dataset.id);
     deletePopover.hidePopover();
-    if (!(await loadExpenses())) return;
-    showMessage('Kulu poistettiin.');
-  } catch (error) {
-    showMessage('Poistaminen epäonnistui. ' + error.message, true);
+    if (await loadExpenses()) showMessage('Kulu poistettiin.');
+  } catch {
+    const text = 'Kulua ei voitu poistaa. Tarkista palvelin ja yritä uudelleen.';
+    if (deletePopover.matches(':popover-open')) deleteError.textContent = text;
+    else showMessage(text, true);
   } finally {
-    button.disabled = false;
+    confirmDelete.disabled = false;
   }
-});
+}
 
-document.querySelector('#cancel-edit').addEventListener('click', function () {
-  editDialog.close();
-});
-
-document.querySelector('#cancel-delete').addEventListener('click', function () {
-  deletePopover.hidePopover();
-});
-
+document.querySelector('#cancel-edit').addEventListener('click', () => editDialog.close());
+confirmDelete.addEventListener('click', deleteExpense);
 sortSelect.addEventListener('change', renderExpenses);
+retryButton.addEventListener('click', loadExpenses);
+window.addEventListener('hashchange', () => showView(true));
 
-retryButton.addEventListener('click', function () {
-  loadExpenses();
-});
-
-window.addEventListener('hashchange', function () {
-  showView(currentView(), true);
-});
-
-showView(currentView());
+showView();
 loadExpenses();
