@@ -1,7 +1,4 @@
-// JSON Server tarjoaa REST-rajapinnan. Käynnistys: npm run server (portti 3000).
-// 127.0.0.1 eikä localhost: Windows voi resolvata localhostin IPv6-osoitteeseen.
-const API_HOST = 'http://127.0.0.1:3000';
-const API_URL = API_HOST + '/expenses';
+const API_URL = 'http://127.0.0.1:3000/expenses';
 
 const views = document.querySelectorAll('.view');
 const navLinks = document.querySelectorAll('.nav-button');
@@ -18,34 +15,25 @@ const sortSelect = document.querySelector('#sort-mode');
 const messageText = document.querySelector('#message-text');
 const retryButton = document.querySelector('#retry-load');
 
-const VIEW_NAMES = ['expenses', 'add', 'summary'];
-
 let expenses = [];
 let selectedId = null;
 
-/* ---------- REST-avustajat ---------- */
-
 async function apiRequest(path = '', options = {}) {
-  const config = { ...options };
-  if (config.body) config.headers = { 'Content-Type': 'application/json' };
-
   let response;
   try {
-    response = await fetch(API_URL + path, config);
+    response = await fetch(API_URL + path, {
+      ...options,
+      headers: options.body ? { 'Content-Type': 'application/json' } : {}
+    });
   } catch {
-    throw new Error(
-      'Palvelimeen ei saada yhteyttä osoitteessa ' + API_URL +
-      '. Käynnistä JSON Server komennolla npm run server ja avaa sivu osoitteessa ' +
-      API_HOST + '.'
-    );
+    throw new Error('Palvelimeen ei saada yhteyttä. Käynnistä se komennolla npm run server.');
   }
 
   if (!response.ok) {
-    throw new Error('Palvelin vastasi virheellä ' + response.status + ' ' + response.statusText + '.');
+    throw new Error('Palvelimen virhe: ' + response.status);
   }
 
-  if (response.status === 204) return null;
-  return response.json();
+  return response.status === 204 ? null : response.json();
 }
 
 async function loadExpenses() {
@@ -61,8 +49,6 @@ async function loadExpenses() {
     return false;
   }
 }
-
-/* ---------- Näkymät ja viestit ---------- */
 
 function showView(viewName, moveFocus = false) {
   views.forEach(function (view) {
@@ -87,7 +73,7 @@ function showView(viewName, moveFocus = false) {
 
 function currentView() {
   const name = location.hash.replace('#', '');
-  return VIEW_NAMES.includes(name) ? name : 'expenses';
+  return ['expenses', 'add', 'summary'].includes(name) ? name : 'expenses';
 }
 
 function goTo(viewName) {
@@ -106,8 +92,6 @@ function hideMessage() {
   message.hidden = true;
   retryButton.hidden = true;
 }
-
-/* ---------- Muotoilu ---------- */
 
 function euro(amount) {
   return Number(amount).toLocaleString('fi-FI', {
@@ -132,8 +116,6 @@ function sortedExpenses() {
 
   return copy;
 }
-
-/* ---------- Renderöinti ---------- */
 
 function renderAll() {
   renderExpenses();
@@ -223,8 +205,6 @@ function renderSummary() {
   if (expenses.length === 0) summaryList.textContent = 'Ei vielä kuluja.';
 }
 
-/* ---------- Lomakedata ---------- */
-
 function formExpense(form) {
   const data = new FormData(form);
   return {
@@ -261,8 +241,6 @@ function openDelete(id) {
   deletePopover.showPopover();
 }
 
-/* ---------- CRUD ---------- */
-
 addForm.addEventListener('submit', async function (event) {
   event.preventDefault();
   const button = addForm.querySelector('[type="submit"]');
@@ -276,7 +254,7 @@ addForm.addEventListener('submit', async function (event) {
     addForm.reset();
     if (!(await loadExpenses())) return;
     goTo('expenses');
-    showMessage('Kulu lisättiin palvelimelle.');
+    showMessage('Kulu lisättiin.');
   } catch (error) {
     showMessage('Kulun tallentaminen epäonnistui. ' + error.message, true);
   } finally {
@@ -296,7 +274,7 @@ editForm.addEventListener('submit', async function (event) {
     });
     editDialog.close();
     if (!(await loadExpenses())) return;
-    showMessage('Muutokset tallennettiin palvelimelle.');
+    showMessage('Muutokset tallennettiin.');
   } catch (error) {
     showMessage('Muokkaaminen epäonnistui. ' + error.message, true);
   } finally {
@@ -312,7 +290,7 @@ document.querySelector('#confirm-delete').addEventListener('click', async functi
     await apiRequest('/' + encodeURIComponent(selectedId), { method: 'DELETE' });
     deletePopover.hidePopover();
     if (!(await loadExpenses())) return;
-    showMessage('Kulu poistettiin palvelimelta.');
+    showMessage('Kulu poistettiin.');
   } catch (error) {
     showMessage('Poistaminen epäonnistui. ' + error.message, true);
   } finally {
@@ -337,8 +315,6 @@ retryButton.addEventListener('click', function () {
 window.addEventListener('hashchange', function () {
   showView(currentView(), true);
 });
-
-/* ---------- Käynnistys ---------- */
 
 showView(currentView());
 loadExpenses();
