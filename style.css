@@ -19,21 +19,20 @@ button:disabled { cursor: wait; opacity: .65; }
   background: light-dark(#e6f4ee, #18302c);
   border-bottom: 1px solid light-dark(#c9ddd4, #38534b);
 }
-h1 { margin: 0; color: light-dark(#075c49, #8de0bc); font-size: 2rem; }
-.site-header p { margin: .25rem 0 1.25rem; }
-nav { display: flex; gap: .4rem; overflow-x: auto; }
+h1 { margin: 0 0 1rem; color: light-dark(#075c49, #8de0bc); font-size: 2rem; }
+nav { display: flex; flex-wrap: wrap; }
 .nav-button {
   border: 0; border-radius: .6rem .6rem 0 0; padding: .7rem .85rem;
   color: inherit; background: transparent; white-space: nowrap;
   text-decoration: none; font-weight: 500;
 }
-.nav-button:hover, .nav-button.active { background: light-dark(#fff, #101b1b); }
-.nav-button.active { font-weight: 700; }
+.nav-button:hover, .nav-button[aria-current] { background: light-dark(#fff, #101b1b); }
+.nav-button[aria-current] { font-weight: 700; }
 main { min-height: 65vh; padding-block: 2rem 3rem; }
 h2 { margin: 0 0 .4rem; font-size: 1.6rem; }
 h3 { margin: 0 0 .5rem; font-size: 1.05rem; }
 h2:focus-visible { outline: 3px solid #0a8d74; outline-offset: 6px; border-radius: .2rem; }
-.view > p, .section-heading p { margin-top: 0; color: light-dark(#415b55, #bfd3ca); }
+.view > p { color: light-dark(#415b55, #bfd3ca); }
 .section-heading {
   display: flex; flex-wrap: wrap; align-items: end;
   justify-content: space-between; gap: 1rem;
@@ -48,7 +47,7 @@ h2:focus-visible { outline: 3px solid #0a8d74; outline-offset: 6px; border-radiu
 }
 .expense-card { min-width: 0; }
 .expense-card h3 { font-size: 1.25rem; overflow-wrap: anywhere; }
-.expense-card dl { display: grid; grid-template-columns: 1fr auto; gap: .45rem 1rem; margin: 1rem 0; }
+.expense-card dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .45rem 1rem; margin: 1rem 0; }
 .expense-card dt { color: light-dark(#4c665e, #bed3c8); }
 .expense-card dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .per-person { border-top: 1px solid light-dark(#d9e5df, #375149); padding-top: .75rem; font-weight: 700; }
@@ -58,7 +57,7 @@ label { font-weight: 600; }
 input, select {
   width: 100%; padding: .7rem; border-radius: .55rem;
   border: 1px solid light-dark(#859c91, #78958a);
-  background: light-dark(#fff, #172622); color: inherit;
+  background: light-dark(#fff, #172622); color: inherit; font-weight: 400;
 }
 input:focus, select:focus { border-color: #0a8d74; }
 input:user-invalid {
@@ -79,11 +78,11 @@ input:user-valid { border-color: light-dark(#1b7f5f, #6bd4a9); }
 .help { margin-top: 1rem; }
 summary { cursor: pointer; font-weight: 650; }
 .totals { margin: 1.5rem 0 2rem; }
-.large-number { font-size: 2rem; font-weight: 750; margin: 0; }
+.large-number { font-size: 2rem; font-weight: 750; margin: 0; overflow-wrap: anywhere; }
 .summary-list { display: grid; gap: .6rem; }
 .summary-row { display: flex; justify-content: space-between; gap: 1rem; padding: .85rem 1rem; border-radius: .65rem; background: light-dark(#fff, #1c2e2b); }
-.summary-row span { overflow-wrap: anywhere; }
-.summary-row strong { white-space: nowrap; }
+.summary-row > * { overflow-wrap: anywhere; }
+.summary-row strong { text-align: right; }
 .message {
   border-radius: .6rem; padding: .8rem 1rem;
   display: flex; flex-wrap: wrap; align-items: center;
@@ -91,7 +90,9 @@ summary { cursor: pointer; font-weight: 650; }
   background: light-dark(#e0f4eb, #234839);
 }
 .message .secondary-button { padding: .45rem .75rem; }
-.message.error { background: light-dark(#fbe8e8, #5b292d); color: light-dark(#7b1d20, #ffe3e3); }
+.message.error { background: light-dark(#fbe8e8, #5b292d); }
+.message.error, .inline-error { color: light-dark(#7b1d20, #ffe3e3); }
+.inline-error:empty { margin: 0; }
 dialog, [popover] {
   width: min(100% - 2rem, 530px); max-height: calc(100vh - 2rem); overflow: auto;
   border: 1px solid light-dark(#b9cdc2, #567266); border-radius: 1rem;
@@ -100,6 +101,7 @@ dialog, [popover] {
 }
 dialog::backdrop { background: #001a1580; }
 [popover] { margin: auto; }
+#delete-question { overflow-wrap: anywhere; }
 footer { padding-bottom: 1rem; color: light-dark(#4c665e, #bed3c8); }
 
 @media (min-width: 650px) {
